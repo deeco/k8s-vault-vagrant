@@ -1,0 +1,20 @@
+########################################
+#Consul Ingress template
+########################################
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: traefik
+  name: consul-ingress
+  namespace: consul
+spec:
+  rules:
+  - host: consul.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: consul-cluster-service
+          servicePort: http
+        path: /

@@ -26,18 +26,20 @@ kubectl create secret generic vault -n vault --from-literal="gossip-encryption-k
 kubectl create configmap consul -n consul --from-file=consul_install/configs/server.json
 kubectl create configmap vault -n vault --from-file=vault_setup/configs/server.json
 kubectl create -f consul_install/services/consul.yaml
-kubectl create -f vault_setup/services/vault.yaml
+#kubectl create -f vault_setup/services/vault.yaml
 kubectl apply -f consul_install/serviceaccounts/consul.yaml
-kubectl apply -f vault_setup/serviceaccounts/vault.yaml
+#kubectl apply -f vault_setup/serviceaccounts/vault.yaml
 kubectl apply -f consul_install/clusterroles/consul.yaml
-kubectl apply -f vault_setup/clusterroles/vault.yaml
+#kubectl apply -f vault_setup/clusterroles/vault.yaml
 pause 20
+
 kubectl create -f consul_install/statefulsets/consul.yaml
+
 #kubectl create -f vault_setup/statefulsets/vault.yaml
 
 #helm repo add hashicorp https://helm.releases.hashicorp.com
 
 #helm install consul hashicorp/consul -f consul-helm/values.yaml --namespace consul --set global.name=consul
 #sleep 20
-#kubectl port-forward services/consul-ui 8888:80 -n consul8:80 -n consul
+#kubectl port-forward services/consul 8888:8500 -n consul
 kubectl get all --all-namespaces

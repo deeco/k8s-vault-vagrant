@@ -1,0 +1,167 @@
+########################################
+#Consul statefulset template
+########################################
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: consul
+  namespace: consul
+  labels:
+    app: consul
+data:
+  server.json: |-
+    {
+      "ca_file": "/etc/tls/ca.pem",
+      "cert_file": "/etc/tls/consul.pem",
+      "key_file": "/etc/tls/consul-key.pem",
+      "verify_incoming": false,
+      "verify_incoming_rpc": false,
+      "verify_incoming_https": false,
+      "verify_outgoing": true,
+      "verify_server_hostname": true,
+      "primary_datacenter": "k8sconsul",
+      "ports": {
+        "https": 8443
+      },
+      "dns_config": {
+        "allow_stale": false
+      }
+    }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: consul
+  namespace: consul
+spec:
+  selector:
+    matchLabels:
+      app: consul
+      component: server
+  serviceName: consul-cluster-service
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: consul
+        component: server
+    spec:
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: consul
+          image: consul:latest
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: GOSSIP_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: consul
+                  key: gossip-encryption-key
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          args:
+            - "agent"
+            - "-advertise=$(POD_IP)"
+            - "-bind=0.0.0.0"
+            - "-bootstrap-expect=3"
+            - "-client=0.0.0.0"
+            - "-config-file=/etc/consul"
+            - "-datacenter=k8sconsul"
+            - "-data-dir=/var/lib/consul"
+            - "-domain=cluster.local"
+            - "-disable-host-node-id"
+            - "-join=consul-cluster-service"
+            - "-retry-join=consul-cluster-service"
+          volumeMounts:
+            - name: consul-data1
+              mountPath: /var/lib/consul
+            - name: config-consul
+              mountPath: /etc/consul/server.json
+              subPath: server.json
+            - name: consul-cert
+              mountPath: /etc/tls/consul.pem
+              subPath: consul.pem
+            - name: consul-key
+              mountPath: /etc/tls/consul-key.pem
+              subPath: consul-key.pem
+            - name: gossip-encryption-key
+              mountPath: /etc/tls/gossip-encryption-key
+              subPath: gossip-encryption-key
+            - name: consul-ca
+              mountPath: /etc/tls/ca.pem
+              subPath: ca.pem
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - consul leave
+          ports:
+            - containerPort: 8500
+              name: ui-port
+            - containerPort: 8400
+              name: alt-port
+            - containerPort: 53
+              name: udp-port
+            - containerPort: 8443
+              name: https-port
+            - containerPort: 8080
+              name: http-port
+            - containerPort: 8301
+              name: serflan
+            - containerPort: 8302
+              name: serfwan
+            - containerPort: 8600
+              name: consuldns
+            - containerPort: 8300
+              name: server
+      volumes:
+        - name: config-consul
+          configMap:
+            name: consul
+            items:
+              - key: server.json
+                path: server.json
+        - name: consul-ca
+          secret:
+            secretName: consul-ca
+            items:
+              - key: ca.pem
+                path: ../certs/keys/consul.pem
+        - name: consul-cert
+          secret:
+            secretName: consul
+            items:
+              - key: consul.csr
+                path: ../certs/keys/consul.csr
+        - name: consul-key
+          secret:
+            secretName: consul
+            items:
+              - key: consul-key.pem
+                path: ../certs/keys/consul-key.pem
+        - name: gossip-encryption-key
+          secret:
+            secretName: consul
+            items:
+              - key: gossip-encryption-key
+                path: gossip-encryption-key
+  volumeClaimTemplates:
+  - metadata:
+      name: consul-data1
+      namespace: consul
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: local-storage
+      resources:
+        requests:
+          storage: 10Gi

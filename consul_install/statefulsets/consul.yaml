@@ -49,8 +49,13 @@ spec:
           args:
             - "agent"
             - "-advertise=$(POD_IP)"
+            - "-bind=0.0.0.0"
             - "-bootstrap-expect=3"
+            - "-client=0.0.0.0"
+            - "-datacenter=k8sconsul"
             - "-config-file=/etc/consul/config/server.json"
+            - "-server"
+            - "-ui"
             - "-encrypt=$(GOSSIP_ENCRYPTION_KEY)"
           volumeMounts:
             - name: consul-data1
