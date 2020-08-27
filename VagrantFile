@@ -1,0 +1,53 @@
+IMAGE_NAME = "ubuntu/xenial64"
+IMAGE2_NAME = "gusztavvargadr/windows-10"
+N = 2
+
+Vagrant.configure("2") do |config|
+        config.vm.define "win", autostart: false do |win|
+            win.vm.box = IMAGE2_NAME
+            win.vm.network "private_network", ip: "192.168.50.200"
+            win.vm.network :forwarded_port, guest: 3985, host: 10122, id: "rdp"
+            win.vm.hostname = 'win'
+            win.vm.provider :virtualbox do |v|
+               v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+               v.customize ["modifyvm", :id, "--memory", 1024]
+               v.customize ["modifyvm", :id, "--name", "win"]
+            end
+        end
+
+
+        config.ssh.insert_key = false
+
+        config.vm.provider "virtualbox" do |v|
+            v.memory = 4096
+            v.cpus = 2
+        end
+
+        config.vm.define "k8s-master", autostart: true do |master|
+            master.vm.box = IMAGE_NAME
+            master.vm.network "private_network", ip: "192.168.50.10"
+            master.vm.hostname = "k8s-master"
+            master.vm.provision "ansible" do |ansible|
+                ansible.compatibility_mode = "auto"
+                ansible.playbook = "kubernetes-setup/master-playbook.yml"
+                ansible.extra_vars = {
+                    node_ip: "192.168.50.10",
+                }
+            end
+        end
+
+        (1..N).each do |i|
+        config.vm.define "node-#{i}", autostart: true do|node|
+            node.vm.box = IMAGE_NAME
+            node.vm.network "private_network", ip: "192.168.50.#{i + 10}"
+            node.vm.hostname = "k8s-node-#{i}"
+            node.vm.provision "ansible" do |ansible|
+                ansible.compatibility_mode = "auto"
+                ansible.playbook = "kubernetes-setup/node-playbook.yml"
+                ansible.extra_vars = {
+                    node_ip: "192.168.50.#{i + 10}",
+                }
+            end
+        end
+    end
+end
